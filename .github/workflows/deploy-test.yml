@@ -1,0 +1,43 @@
+name: Deploy to Test
+
+on:
+  push:
+    branches: [ "all-in-one*" ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the docker test image
+        run: docker build . --file Dockerfile --tag ${{ secrets.ALIYUN_DOCKER_REPO }}:all-in-one-${{ github.run_id }}
+      - name: Login to aliyun docker repository
+        run: docker login --username=${{ secrets.ALIYUN_USERNAME }} -p ${{ secrets.ALIYUN_PWD }} ${{ secrets.ALIYUN_DOCKER_REPO }}
+      - name: Push image to aliyun docker repository
+        run: docker push ${{ secrets.ALIYUN_DOCKER_REPO }}:all-in-one-${{ github.run_id }}
+        
+  deployment:
+    
+    runs-on: [self-hosted, linux, x64, ubuntu]
+    needs: [build]
+    
+    steps:
+      - name: Export Environment variant
+        run: echo 'IMAGE=${{ secrets.ALIYUN_DOCKER_REPO }}:all-in-one-${{ github.run_id }}' > /home/void-bot-test/.env
+      - name: Login to aliyun docker repository
+        run: docker login --username=${{ secrets.ALIYUN_USERNAME }} -p ${{ secrets.ALIYUN_PWD }} ${{ secrets.ALIYUN_DOCKER_REPO }}
+      - name: Deploy docker container
+        run: docker compose -f /home/void-bot-test/docker-compose.yml --project-directory /home/void-bot-test up -d
+      - name: Clean up old images
+        run: |
+         KEEP_IMAGES=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep '${{ secrets.ALIYUN_DOCKER_REPO }}:all-in-one-' | sort -r | head -3)
+         ALL_IMAGES=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep '${{ secrets.ALIYUN_DOCKER_REPO }}:all-in-one-')
+         for IMG in $ALL_IMAGES; do
+           if ! echo "$KEEP_IMAGES" | grep -q "$IMG"; then
+             echo "Removing old image: $IMG"
+             docker rmi "$IMG" || true
+           fi
+         done
