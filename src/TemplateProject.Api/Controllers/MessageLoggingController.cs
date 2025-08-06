@@ -1,0 +1,23 @@
+using Mediator.Net;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using TemplateProject.Api.Filters;
+using TemplateProject.Message.Request.MessageLogging;
+
+namespace TemplateProject.Api.Controllers;
+
+[Authorize]
+[ApiController]
+[Route("api/[controller]")]
+[Security]
+public class MessageLoggingController(IMediator mediator) : ControllerBase
+{
+    [HttpGet]
+    [Route("page")]
+    public async Task<IActionResult> GetMessageLogPageAsync([FromQuery] GetMessageLogPageRequest request)
+    {
+        var response = await mediator.RequestAsync<GetMessageLogPageRequest, GetMessageLogPageResponse>(request).ConfigureAwait(false);
+        
+        return Ok(response);
+    }
+}

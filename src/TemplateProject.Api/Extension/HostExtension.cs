@@ -1,0 +1,149 @@
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using Hangfire;
+using Hangfire.Dashboard.BasicAuthorization;
+using Hangfire.MemoryStorage;
+using Hangfire.Redis.StackExchange;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Scalar.AspNetCore;
+using Serilog;
+using TemplateProject.Api.ActionFilters;
+using TemplateProject.Api.Authentication;
+using TemplateProject.Api.HostedService;
+using TemplateProject.Core;
+using TemplateProject.Core.Extension;
+using TemplateProject.Core.Settings;
+using TemplateProject.Core.Settings.System;
+using TemplateProject.Message.Enum;
+
+namespace TemplateProject.Api.Extension;
+
+public static class HostExtension
+{
+    public static WebApplicationBuilder ConfigureHost(this WebApplicationBuilder builder)
+    {
+        var host = builder.Host;
+        var configuration = builder.Configuration;
+
+        host.UseSerilog();
+        host.UseSerilog(Log.Logger);
+        host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
+        host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
+        {
+            containerBuilder.RegisterType<InitializationHostedService>().As<IHostedService>().SingleInstance();
+            containerBuilder.RegisterModule(new CoreModule(null, Log.Logger, configuration, typeof(CoreModule).Assembly));
+        });
+        
+        return builder;
+    }
+    
+    public static WebApplicationBuilder AddServices(this WebApplicationBuilder builder)
+    {
+        var services = builder.Services;
+        var configuration = builder.Configuration;
+        
+        var cacheSetting = new CacheSetting(configuration);
+        var hangfireSetting = new HangfireSetting(configuration);
+        var connectionSetting = new ConnectionStringSetting(configuration);
+        
+        services.AddHttpContextAccessor();
+        services.AddAuthentication("AuthenticationSchemes")
+            .AddPolicyScheme("AuthenticationSchemes", "ApiKey or Jwt", options =>
+            {
+                options.ForwardDefaultSelector = context => context.Request.Headers.ContainsKey(ApiKeyAuthenticationOptions.SchemeHeader)
+                    ? ApiKeyAuthenticationOptions.AuthenticationScheme
+                    : JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddApiKeyScheme()
+            .AddJwtScheme();
+        
+        services.AddOpenApi(options =>
+        {
+            options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+            options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>();
+        });
+        
+        services.AddAuthorization(options =>
+        {
+            options.DefaultPolicy = new AuthorizationPolicyBuilder(
+                JwtBearerDefaults.AuthenticationScheme,
+                ApiKeyAuthenticationOptions.AuthenticationScheme
+            ).RequireAuthenticatedUser().Build();
+        });
+
+        services.AddControllers(options =>
+        {
+            options.Filters.Add<UnifyResponseFilter>();
+            options.Filters.Add<UnifyResponseExceptionFilter>();
+        });
+        
+        
+        
+        services.AddHangfire(config =>
+        {
+            switch(hangfireSetting.UseStorage)
+            {
+                case CacheTypeEnum.Redis:
+                    var option = new RedisStorageOptions { Db = cacheSetting.RedisDatabaseIndex };
+                    config.UseRedisStorage(connectionSetting.Redis, option);
+                    break;
+                case CacheTypeEnum.Memory:
+                default:
+                    config.UseMemoryStorage();
+                    break;
+            }
+        });
+        services.AddHangfireServer();
+
+        return builder;
+    }
+    
+    public static WebApplication ConfigureApp(this WebApplication app)
+    {
+        var configuration = app.Configuration;
+        var hangfireSetting = new HangfireSetting(configuration);
+        
+        if (AppSetting.EnableScalar)
+        {
+            app.MapOpenApi();
+            app.MapScalarApiReference();
+        }
+        
+        app.UseHttpsRedirection();
+        app.UseRouting();
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapControllers();
+        
+        if (hangfireSetting.EnableDashboard)
+        {
+            var option = new DashboardOptions
+            {
+                Authorization = [
+                    new BasicAuthAuthorizationFilter(new BasicAuthAuthorizationFilterOptions
+                    {
+                        SslRedirect = false,
+                        RequireSsl = false,
+                        LoginCaseSensitive = true,
+                        Users =
+                        [
+                            new BasicAuthAuthorizationUser
+                            {
+                                Login = hangfireSetting.DashboardUser,
+                                PasswordClear = hangfireSetting.DashboardPassword
+                            }
+                        ]
+                    })
+                ]
+            };
+            
+            app.UseHangfireDashboard(hangfireSetting.DashboardPath, option);
+        }
+        app.UseForgetJobs();
+        app.UseDelayedJobs();
+        app.UseRecurringJobs();
+
+        return app;
+    }
+}
