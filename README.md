@@ -24,7 +24,7 @@
 创建一个新项目：
 
 ```
-dotnet new fullstack-template -n YourProjectName
+dotnet new f-template -n YourProjectName
 ```
 
 ## 可用选项
@@ -39,7 +39,3 @@ dotnet new fullstack-template -n YourProjectName
 - **[ProjectName].Message**：DTO 和消息定义
 - **[ProjectName].UnitTests**：单元测试项目
 - **[ProjectName].IntegrationTests**：集成测试项目
-
-## 贡献
-
-欢迎提交 Pull Requests 和 Issues！
