@@ -33,8 +33,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="Handler\CommandHandler\" />
       <Folder Include="Handler\EventHandler\" />
       <Folder Include="Jobs\DelayedJobs\" />
+      <Folder Include="Validators\" />
     </ItemGroup>
 
     <ItemGroup>

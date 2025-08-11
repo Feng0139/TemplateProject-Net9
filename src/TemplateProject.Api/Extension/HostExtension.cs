@@ -4,13 +4,9 @@ using Hangfire;
 using Hangfire.Dashboard.BasicAuthorization;
 using Hangfire.MemoryStorage;
 using Hangfire.Redis.StackExchange;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Scalar.AspNetCore;
 using Serilog;
 using TemplateProject.Api.ActionFilters;
-using TemplateProject.Api.Authentication;
-using TemplateProject.Api.HostedService;
 using TemplateProject.Core;
 using TemplateProject.Core.Extension;
 using TemplateProject.Core.Settings;
@@ -31,7 +27,6 @@ public static class HostExtension
         host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
         host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
         {
-            containerBuilder.RegisterType<InitializationHostedService>().As<IHostedService>().SingleInstance();
             containerBuilder.RegisterModule(new CoreModule(null, Log.Logger, configuration, typeof(CoreModule).Assembly));
         });
         
@@ -48,37 +43,14 @@ public static class HostExtension
         var connectionSetting = new ConnectionStringSetting(configuration);
         
         services.AddHttpContextAccessor();
-        services.AddAuthentication("AuthenticationSchemes")
-            .AddPolicyScheme("AuthenticationSchemes", "ApiKey or Jwt", options =>
-            {
-                options.ForwardDefaultSelector = context => context.Request.Headers.ContainsKey(ApiKeyAuthenticationOptions.SchemeHeader)
-                    ? ApiKeyAuthenticationOptions.AuthenticationScheme
-                    : JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddApiKeyScheme()
-            .AddJwtScheme();
         
-        services.AddOpenApi(options =>
-        {
-            options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
-            options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>();
-        });
-        
-        services.AddAuthorization(options =>
-        {
-            options.DefaultPolicy = new AuthorizationPolicyBuilder(
-                JwtBearerDefaults.AuthenticationScheme,
-                ApiKeyAuthenticationOptions.AuthenticationScheme
-            ).RequireAuthenticatedUser().Build();
-        });
+        services.AddOpenApi();
 
         services.AddControllers(options =>
         {
             options.Filters.Add<UnifyResponseFilter>();
             options.Filters.Add<UnifyResponseExceptionFilter>();
         });
-        
-        
         
         services.AddHangfire(config =>
         {
