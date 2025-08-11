@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>Feng0139.TemplateProject</id>
+    <version>1.0.0</version>
+    <description>一个完整的 .NET 9.0 解决方案模板，包含 API、Blazor WASM、Core 库和测试项目</description>
+    <authors>Feng0139</authors>
+    <packageTypes>
+      <packageType name="Template" />
+    </packageTypes>
+    <license type="expression">MIT</license>
+  </metadata>
+  <files>
+    <file src="**" exclude="**\bin\**;**\obj\**;**\.vs\**;**\.git\**;.template.config\.git\**" target="content" />
+  </files>
+</package>

@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Feng0139",
+  "classifications": [ "Web", "API", "Blazor" ],
+  "identity": "Feng0139.TemplateProject",
+  "name": ".NET Template Project",
+  "shortName": "f-template",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "TemplateProject",
+  "preferNameDirectory": true
+}
